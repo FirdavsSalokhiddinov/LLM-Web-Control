@@ -1,0 +1,12 @@
+{
+  "name": "claude-browser-bridge",
+  "version": "0.1.0",
+  "description": "Local bridge server connecting a Claude Code session to the Claude Browser Control Chrome extension.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
