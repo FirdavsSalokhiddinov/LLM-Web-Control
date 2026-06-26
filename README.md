@@ -1,4 +1,4 @@
-# claude-powered
+# claude-web-control
 
 Lets a Claude Code session (running locally on your $20/mo plan — no Anthropic
 API key, no extra billing) control your actual Chrome browser: open tabs,
