@@ -1,20 +1,20 @@
-# claude-web-control
+# LLM-Web-Control
 
-Lets a Claude Code session (running locally on your $20/mo plan — no Anthropic
-API key, no extra billing) control your actual Chrome browser: open tabs,
-click, type, scroll, read the page, and take screenshots.
+Lets a coding LLM session (running locally on your own plan — no API key, no extra billing) control your actual Chrome browser: open tabs, click, type, scroll, read the page, and take screenshots.
 
 There are two pieces:
 
-- **`bridge-server/`** — a small local Node server. The extension connects to
-  it over WebSocket; I (Claude, via my Bash tool) send it plain HTTP commands.
-- **`extension/`** — a Chrome (MV3) extension that receives commands from the
-  bridge and executes them against your real tabs, using `chrome.debugger`
-  (Chrome DevTools Protocol) for trusted clicks/typing and content-script
-  injection for reading the DOM.
+- **`bridge-server/`** — a small local Node server. The extension connects to it over WebSocket; your coding LLM sends it plain HTTP commands.
+- **`extension/`** — a Chrome (MV3) extension that receives commands from the bridge and executes them against your real tabs, using `chrome.debugger` (Chrome DevTools Protocol) for trusted clicks/typing and content-script injection for reading the DOM.
 
-See [docs/](docs/) for setup, the wire protocol, the full command reference,
-and the security model.
+See [docs/](docs/) for setup, the wire protocol, the full command reference, and the security model.
+
+## Tested With
+
+- ✅ Claude Code
+- ✅ Codex
+- ✅ Open Code
+- ✅ Qwen 4B
 
 ## Quick start
 
@@ -32,9 +32,6 @@ Then load the extension:
 2. "Load unpacked" → select the `extension/` folder.
 3. Click the extension icon, paste the token printed by the server, click Save.
 
-The extension badge turns **ON** (green) once it's connected. From here, just
-tell me (Claude) what you want done in the browser — I drive it via the
-bridge's `/cmd` endpoint.
+The extension badge turns **ON** (green) once it's connected. From here, just tell your supported coding LLM what you want done in the browser—it drives everything via the bridge's `/cmd` endpoint.
 
-Full docs: [docs/README.md](docs/README.md). Prefer a walkthrough?
-See [docs/TUTORIAL.md](docs/TUTORIAL.md) for a click-by-click guide.
+Full docs: [docs/README.md](docs/README.md). Prefer a walkthrough? See [docs/TUTORIAL.md](docs/TUTORIAL.md) for a click-by-click guide.
