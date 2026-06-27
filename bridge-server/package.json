@@ -1,7 +1,7 @@
 {
-  "name": "claude-browser-bridge",
+  "name": "llm-web-control",
   "version": "0.1.0",
-  "description": "Local bridge server connecting a Claude Code session to the Claude Browser Control Chrome extension.",
+  "description": "Local bridge server for LLM-Web-Control — lets local LLMs crawl, scrape, and automate Chrome. Your data stays with you.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

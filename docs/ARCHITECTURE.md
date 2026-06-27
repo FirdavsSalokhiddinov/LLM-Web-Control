@@ -1,90 +1,93 @@
 # Architecture
 
-```text
- ┌──────────────────────────┐        HTTP POST /cmd         ┌──────────────┐        WebSocket           ┌───────────────────┐
- │ Supported Coding LLM     │ ─────────────────────────────▶│ bridge-server │◀──────────────────────────▶│ Chrome extension  │
- │ (Claude Code, Codex,     │   Authorization: Bearer <token>│ (Node, :8765) │   register {token}, cmd/result│ background.js     │
- │ Open Code, Qwen, etc.)   │                               └──────────────┘                             └─────────┬─────────┘
- └──────────────────────────┘                                                                               │
-                                                                                     chrome.scripting / chrome.debugger (CDP)
-                                                                                                            ▼
-                                                                                                     Your real Chrome tabs
+```
+┌──────────────┐   HTTP POST /cmd    ┌──────────────┐   WebSocket    ┌──────────────────┐
+│  Local LLM   │ ──────────────────▶ │ bridge-server │◀─────────────▶│ Chrome Extension │
+│ (Codex,      │   Bearer <token>    │  (Node, :8765)│  register,    │  background.js   │
+│ Claude Code, │                     └──────────────┘  cmd/result    └────────┬─────────┘
+│ OpenCode,    │                                                                │
+│ Qwen, Llama, │                                                        chrome.debugger (CDP)
+│ Kimi, etc.)  │                                                     chrome.scripting (DOM)
+└──────────────┘                                                               │
+                                                                                ▼
+                                                                         Your real Chrome
+                                                                     (cookies, sessions, tabs)
 ```
 
-## Why a bridge server instead of a direct connection?
+## Why a Bridge?
 
-Coding LLMs don't run inside the browser and can't communicate directly with a Chrome extension in a clean request/response workflow. The bridge server acts as a lightweight stateful relay, maintaining a persistent WebSocket connection to the extension while exposing a simple HTTP API that any supported coding LLM can use.
+Local LLMs don't run inside the browser and can't talk directly to a Chrome extension in a clean request/response pattern. The bridge server is a lightweight relay:
 
-Each HTTP request is converted into a WebSocket command, tracked by a unique request ID, and the response is returned back to the LLM.
+- Maintains a persistent WebSocket connection to the extension
+- Exposes a simple HTTP API your LLM calls naturally
+- Tracks each command by a unique request ID
+- Maps responses back to the original caller
 
-## Why `chrome.debugger` instead of only content scripts?
+## Why Chrome DevTools Protocol (CDP)?
 
-Content scripts can dispatch synthetic DOM events, but many modern websites distinguish between synthetic events and trusted user input, ignoring the former for security reasons (for example, form submissions, drag-and-drop interfaces, canvas applications, and complex editors).
+Content scripts dispatch synthetic DOM events — but modern websites can distinguish synthetic events from real user input and ignore them (form submissions, drag-and-drop, canvas apps, rich editors).
 
-`chrome.debugger` attaches to a tab using the Chrome DevTools Protocol (CDP) and sends real input events such as:
+CDP (`chrome.debugger`) sends the same input primitives Chrome DevTools uses:
 
-- `Input.dispatchMouseEvent`
-- `Input.dispatchKeyEvent`
-- `Input.insertText`
+- `Input.dispatchMouseEvent` — trusted clicks, drags, scrolls
+- `Input.dispatchKeyEvent` — trusted key presses
+- `Input.insertText` — trusted text input
 
-These are the same primitives used by Chrome DevTools itself, making clicks, typing, scrolling, and coordinate-based interactions reliable across virtually any website.
+These work on every website, including canvas-based apps, complex Shadow DOM, and embedded iframes.
 
-## Command flow
+## Crawl & Scrape Data Flow
 
-1. You ask your coding LLM to perform an action in Chrome.
-2. The LLM determines the required commands (for example, `snapshot` followed by `click`).
-3. The LLM sends an HTTP request to the bridge:
-
-```bash
-curl -X POST http://127.0.0.1:8765/cmd \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"action":"click","params":{"selector":"#submit"}}'
+```
+Your LLM
+  │
+  ├── 1. POST /cmd {"action":"navigate","params":{"url":"..."}}
+  │     └── Browser loads page
+  │
+  ├── 2. POST /cmd {"action":"snapshot"}
+  │     └── Returns structured DOM: tags, selectors, text, rects, links, forms
+  │
+  ├── 3. POST /cmd {"action":"extractText","params":{"selector":"..."}}
+  │     └── Returns inner text of targeted element
+  │
+  ├── 4. POST /cmd {"action":"click","params":{"selector":"a:nth-child(3)"}}
+  │     └── Click navigates to next page → repeat from step 1
+  │
+  └── 5. Screenshot fallback for canvas/unknown layouts
+        POST /cmd {"action":"screenshot"}
+        └── Returns base64 + saved .png file
 ```
 
-4. The bridge forwards the command over the WebSocket as:
+### DOM-first, screenshot fallback
+
+The `snapshot` action extracts interactive elements with:
+- HTML tag and ARIA role
+- Visible text and labels
+- Bounding box coordinates
+- CSS selector (ready to use in subsequent commands)
+
+When no stable selector exists (canvas, custom widgets, Shadow DOM), your LLM falls back to screenshot + coordinate-based interaction via CDP.
+
+## Command Protocol
+
+Each HTTP command generates a WebSocket message:
 
 ```json
-{
-  "id": "...",
-  "type": "cmd",
-  "action": "click",
-  "params": { ... }
-}
+{"id":"uuid","type":"cmd","action":"click","params":{"selector":"#submit"}}
 ```
 
-5. The Chrome extension executes the action (attaching the debugger if necessary) and returns:
+The extension processes it and replies:
 
 ```json
-{
-  "id": "...",
-  "ok": true,
-  "data": { ... }
-}
+{"id":"uuid","ok":true,"data":{"clicked":{"x":100,"y":200}}}
 ```
 
-6. The bridge matches the response to the original request and returns the result to the LLM.
+The bridge matches the response ID to the original HTTP request and returns the data to your LLM. Commands time out after 20 seconds.
 
-## DOM-first, screenshot fallback
+## Security Boundary
 
-The `snapshot` command extracts a structured list of interactive elements using `chrome.scripting.executeScript`, including:
+See [SECURITY.md](SECURITY.md) for full details. In brief:
 
-- HTML tag
-- ARIA role
-- Visible text
-- Bounding box
-- CSS selector
-
-Whenever possible, browser actions target these DOM elements directly, making interactions fast and reliable.
-
-If no stable selector can be resolved—such as with canvas-rendered interfaces, complex Shadow DOM structures, or custom widgets—the LLM automatically falls back to taking a screenshot and interacting using raw `x`/`y` coordinates through the same Chrome DevTools Protocol APIs.
-
-## Security boundary
-
-See [SECURITY.md](SECURITY.md).
-
-In short, the bridge is designed to remain local and secure:
-
-- Listens only on `127.0.0.1`
-- Requires a randomly generated bearer token for every request
-- Rejects any request containing an `Origin` header, preventing malicious webpages from issuing CSRF requests to the local bridge
-- Never exposes browser control outside the local machine unless you explicitly choose to do so
+- Listens only on `127.0.0.1` — not exposed to network or internet
+- Every request requires a bearer token (256-bit random, gitignored)
+- Rejects requests with an `Origin` header — prevents CSRF from malicious pages
+- **Your data never leaves your machine**

@@ -1,30 +1,14 @@
-# LLM-Web-Control — Setup & Usage
+# Setup & Usage Guide
 
-## What is LLM-Web-Control?
+LLM-Powered-Web turns your local coding LLM into a web crawler, scraper, and browser automation tool — with zero data leaving your machine.
 
-LLM-Web-Control lets your favorite coding LLM control your real, logged-in Chrome browser—using the same cookies, sessions, tabs, and profiles you already have. Simply interact with your coding LLM as usual, and it can automate browser tasks through the local bridge server.
+**Tested with:** Codex · Claude Code · OpenCode · Qwen 4B · Llama 3.3 · Kimi K2.6
 
-No additional API keys or usage fees are required beyond your existing coding LLM setup.
+---
 
-**Tested with:**
+## One-Time Setup
 
-- ✅ Claude Code
-- ✅ Codex
-- ✅ Open Code
-- ✅ Qwen 4B
-
-## Project Structure
-
-```text
-llm-web-control/
-├── bridge-server/   Local Node.js bridge (HTTP + WebSocket), listens on 127.0.0.1:8765
-├── extension/       Chrome MV3 extension (loaded unpacked)
-└── docs/            Documentation
-```
-
-## One-time Setup
-
-### 1. Install and start the bridge server
+### 1. Install & start the bridge server
 
 ```bash
 cd bridge-server
@@ -32,76 +16,71 @@ npm install
 npm start
 ```
 
-On the first launch, the bridge server:
-
-- Generates a random authentication token
-- Stores it in `bridge-server/.token` (gitignored)
+On first launch, the bridge:
+- Generates a random 256-bit authentication token
+- Stores it in `bridge-server/.token` (automatically gitignored)
 - Prints the token to the terminal
 
-Keep the bridge server running—it's the communication layer between your coding LLM and Chrome.
-
----
+Keep the bridge server running — it's the communication layer between your LLM and Chrome.
 
 ### 2. Load the Chrome extension
 
 1. Open `chrome://extensions`
-2. Enable **Developer mode**
+2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
 4. Select the `extension/` folder
-5. Click the extension icon
-6. Paste the token from Step 1
-7. Click **Save**
+5. The extension appears in your toolbar
 
----
+### 3. Connect the extension
 
-### 3. Verify the connection
+1. Click the extension icon
+2. Paste the token from the terminal
+3. Click **Save**
 
-Once connected, the extension badge turns **green** and displays **ON**.
+Once connected, the badge turns **green** and displays **ON**.
 
-If you restart the bridge server later, it automatically reloads the token from `.token`, so you won't need to paste it again unless you delete the file.
+If you restart the bridge later, it reloads the token from `.token` — no need to re-paste unless you delete that file.
 
 ---
 
 ## Daily Usage
 
-After both the bridge server and extension are running, simply ask your supported coding LLM to perform browser tasks, for example:
+With the bridge running and extension connected, your LLM can drive the browser. Typical workflows:
 
-- Open GitHub and check notifications
-- Fill out a form
-- Read a webpage
-- Click buttons
-- Search for information
-- Take screenshots
-- Navigate between tabs
+| Task | How it works |
+|---|---|
+| Crawl a page | `snapshot` → read DOM elements → follow links |
+| Scrape data | `extractText` → read targeted content |
+| Fill & submit forms | `type` + `click` → automate workflows |
+| Take screenshots | `screenshot` → analyze visually |
+| Navigate | `navigate` → `newTab` → `switchTab` |
 
-The workflow is simple:
+### Workflow
 
-1. Your coding LLM sends an HTTP command to the bridge server.
-2. The bridge forwards the command to the Chrome extension over WebSocket.
-3. The extension performs the requested action inside your real browser.
-4. Results such as DOM snapshots, extracted text, screenshots, or browser state are returned to the LLM.
-5. The LLM uses those results to determine the next action.
+1. Your LLM sends an HTTP command to the bridge
+2. The bridge forwards it over WebSocket to the extension
+3. The extension executes the action in your real Chrome browser
+4. Results (DOM data, text, screenshots) flow back to the LLM
+5. The LLM decides the next action
 
-While controlling a tab, Chrome displays the standard **"This extension is debugging this browser"** banner. This is expected behavior because LLM-Web-Control uses `chrome.debugger` (the same API used by Chrome DevTools) to generate trusted mouse and keyboard input.
-
----
-
-## Stopping LLM-Web-Control
-
-To stop browser automation, simply:
-
-- Press **Ctrl+C** in the bridge server terminal, or
-- Disable or remove the Chrome extension.
-
-When the bridge server is not running, the extension remains idle and your browser behaves normally.
+While controlling a tab, Chrome shows **"This extension is debugging this browser"** — standard CDP behavior, not hidden.
 
 ---
 
-## Documentation
+## Stopping
 
-For additional information, see:
+- Press **Ctrl+C** in the bridge terminal, or
+- Disable/remove the Chrome extension
 
-- **`TUTORIAL.md`** — Step-by-step walkthrough
-- **`ARCHITECTURE.md`** — Internal architecture and design
-- **`COMMANDS.md`** — Complete command reference
-- **`SECURITY.md`** — Security model and threat boundaries
+The extension becomes idle when the bridge is unavailable. Your browser returns to normal.
+
+---
+
+## More Docs
+
+| Document | What's inside |
+|---|---|
+| [TUTORIAL.md](TUTORIAL.md) | Step-by-step walkthrough from scratch |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Internal design, CDP, command flow |
+| [COMMANDS.md](COMMANDS.md) | Complete command reference |
+| [SECURITY.md](SECURITY.md) | Security model & privacy guarantees |
