@@ -1,68 +1,107 @@
-# Claude Browser Control — Setup & Usage
+# LLM-Web-Control — Setup & Usage
 
-## What this is
+## What is LLM-Web-Control?
 
-A way for this Claude Code session to control your real, logged-in Chrome
-browser — same cookies, same sessions, same tabs — based on what you type to
-me in this terminal. No Anthropic API key, no separate billing: the "brain"
-is this Claude Code session itself, already covered by your existing plan.
+LLM-Web-Control lets your favorite coding LLM control your real, logged-in Chrome browser—using the same cookies, sessions, tabs, and profiles you already have. Simply interact with your coding LLM as usual, and it can automate browser tasks through the local bridge server.
 
-## Pieces
+No additional API keys or usage fees are required beyond your existing coding LLM setup.
 
+**Tested with:**
+
+- ✅ Claude Code
+- ✅ Codex
+- ✅ Open Code
+- ✅ Qwen 4B
+
+## Project Structure
+
+```text
+llm-web-control/
+├── bridge-server/   Local Node.js bridge (HTTP + WebSocket), listens on 127.0.0.1:8765
+├── extension/       Chrome MV3 extension (loaded unpacked)
+└── docs/            Documentation
 ```
-claude-powered/
-├── bridge-server/   local Node server (WebSocket + HTTP), runs on 127.0.0.1:8765
-├── extension/       Chrome MV3 extension, loaded unpacked
-└── docs/            this folder
+
+## One-time Setup
+
+### 1. Install and start the bridge server
+
+```bash
+cd bridge-server
+npm install
+npm start
 ```
 
-## One-time setup
+On the first launch, the bridge server:
 
-1. **Install and start the bridge server:**
+- Generates a random authentication token
+- Stores it in `bridge-server/.token` (gitignored)
+- Prints the token to the terminal
 
-   ```bash
-   cd bridge-server
-   npm install
-   npm start
-   ```
+Keep the bridge server running—it's the communication layer between your coding LLM and Chrome.
 
-   On first run this generates a random token, saves it to `bridge-server/.token`
-   (gitignored), and prints it to the console. Keep this terminal running —
-   it's the relay between me and your browser.
+---
 
-2. **Load the extension:**
+### 2. Load the Chrome extension
 
-   - Go to `chrome://extensions`
-   - Enable "Developer mode" (top right)
-   - Click "Load unpacked", select the `extension/` folder
-   - Click the new extension's icon in the toolbar, paste the token from
-     step 1 into the popup, click Save
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select the `extension/` folder
+5. Click the extension icon
+6. Paste the token from Step 1
+7. Click **Save**
 
-3. **Check connection:** the extension's toolbar badge shows `ON` in green
-   once it's connected to the bridge. If you restart the server, the token
-   stays the same (read from `.token`) so you don't need to re-paste it,
-   unless you delete `.token`.
+---
 
-## Day-to-day use
+### 3. Verify the connection
 
-Once both are running, just tell me what to do in the browser in this chat
-("open github.com and check my notifications", "fill out this form", "find
-the price on this page"). I issue commands to the bridge over plain HTTP
-(`curl`/Bash), the extension executes them in your actual browser, and I read
-back the results (DOM snapshots, extracted text, or screenshots) to decide
-the next step.
+Once connected, the extension badge turns **green** and displays **ON**.
 
-You'll see Chrome's "this extension is debugging this browser" banner appear
-on tabs I'm actively controlling — that's expected; it's how Chrome surfaces
-that `chrome.debugger` (the same API devtools uses) is attached for trusted
-clicks/keystrokes.
+If you restart the bridge server later, it automatically reloads the token from `.token`, so you won't need to paste it again unless you delete the file.
 
-## Stopping
+---
 
-Close the bridge-server terminal (Ctrl+C) or disable/remove the extension.
-Without the bridge running, the extension just sits idle (badge cleared) and
-the browser behaves completely normally.
+## Daily Usage
 
-See also: [TUTORIAL.md](TUTORIAL.md) for a step-by-step walkthrough,
-[ARCHITECTURE.md](ARCHITECTURE.md), [COMMANDS.md](COMMANDS.md), and
-[SECURITY.md](SECURITY.md).
+After both the bridge server and extension are running, simply ask your supported coding LLM to perform browser tasks, for example:
+
+- Open GitHub and check notifications
+- Fill out a form
+- Read a webpage
+- Click buttons
+- Search for information
+- Take screenshots
+- Navigate between tabs
+
+The workflow is simple:
+
+1. Your coding LLM sends an HTTP command to the bridge server.
+2. The bridge forwards the command to the Chrome extension over WebSocket.
+3. The extension performs the requested action inside your real browser.
+4. Results such as DOM snapshots, extracted text, screenshots, or browser state are returned to the LLM.
+5. The LLM uses those results to determine the next action.
+
+While controlling a tab, Chrome displays the standard **"This extension is debugging this browser"** banner. This is expected behavior because LLM-Web-Control uses `chrome.debugger` (the same API used by Chrome DevTools) to generate trusted mouse and keyboard input.
+
+---
+
+## Stopping LLM-Web-Control
+
+To stop browser automation, simply:
+
+- Press **Ctrl+C** in the bridge server terminal, or
+- Disable or remove the Chrome extension.
+
+When the bridge server is not running, the extension remains idle and your browser behaves normally.
+
+---
+
+## Documentation
+
+For additional information, see:
+
+- **`TUTORIAL.md`** — Step-by-step walkthrough
+- **`ARCHITECTURE.md`** — Internal architecture and design
+- **`COMMANDS.md`** — Complete command reference
+- **`SECURITY.md`** — Security model and threat boundaries
