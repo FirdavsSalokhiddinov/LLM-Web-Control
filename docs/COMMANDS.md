@@ -1,6 +1,6 @@
-# Command reference
+# Command Reference
 
-All commands go through:
+All browser commands are sent through the bridge server:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
@@ -9,15 +9,34 @@ curl -s -X POST http://127.0.0.1:8765/cmd \
   -d '{"action":"<action>","params":{...}}'
 ```
 
-Response shape: `{"ok": true, "data": {...}}` or `{"ok": false, "error": "..."}`.
+The bridge accepts commands from any supported coding LLM and forwards them to the Chrome extension.
 
-Most actions take an optional `tabId`; if omitted, they act on the current
-active tab in the current window.
+Response format:
 
-## Tab management
+```json
+{
+  "ok": true,
+  "data": { ... }
+}
+```
 
-| action | params | returns |
-|---|---|---|
+or
+
+```json
+{
+  "ok": false,
+  "error": "..."
+}
+```
+
+Most actions accept an optional `tabId`. If omitted, the command targets the active tab in the current Chrome window.
+
+---
+
+## Tab Management
+
+| Action | Parameters | Returns |
+|--------|------------|---------|
 | `listTabs` | — | `[{id, url, title, active, windowId}, ...]` |
 | `newTab` | `{url?}` | `{tabId}` |
 | `closeTab` | `{tabId?}` | `{closed}` |
@@ -25,37 +44,45 @@ active tab in the current window.
 | `navigate` | `{tabId?, url}` | `{tabId}` |
 | `getPageInfo` | `{tabId?}` | `{url, title}` |
 
-## Reading the page
+---
 
-| action | params | returns |
-|---|---|---|
+## Reading the Page
+
+| Action | Parameters | Returns |
+|--------|------------|---------|
 | `snapshot` | `{tabId?, maxElements?}` | `{url, title, scrollX, scrollY, viewport, elements:[{selector, tag, role, type, name, placeholder, text, href, rect}]}` |
-| `extractText` | `{tabId?, selector?}` | innerText of `selector`, or whole `<body>` if omitted |
-| `screenshot` | `{tabId?}` | `{base64, path}` — also written to `bridge-server/screenshots/<timestamp>.png` |
+| `extractText` | `{tabId?, selector?}` | Inner text of the specified selector, or the entire `<body>` if omitted |
+| `screenshot` | `{tabId?}` | `{base64, path}` — also saves the image to `bridge-server/screenshots/<timestamp>.png` |
 
-`snapshot` is the primary way I "see" a page: it lists clickable/interactive
-elements with a ready-to-use CSS `selector`.
+`snapshot` is the primary way supported coding LLMs understand a webpage. It returns structured information about interactive elements, including ready-to-use CSS selectors for reliable automation.
 
-## Acting on the page
+---
 
-| action | params | notes |
-|---|---|---|
-| `click` | `{tabId?, selector}` or `{tabId?, x, y}` | dispatches a trusted mouse click via CDP |
-| `type` | `{tabId?, selector?, text}` | clicks `selector` first to focus (if given), then inserts `text` |
-| `pressKey` | `{tabId?, key}` | named keys (`Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`, `ArrowUp/Down/Left/Right`) plus any single letter or digit (e.g. `r`, `t`, `2`) for app keyboard shortcuts |
-| `drag` | `{tabId?, x1, y1, x2, y2, steps?}` | trusted mouse-down → move → mouse-up between two points; for drawing/resizing on canvas apps |
-| `scroll` | `{tabId?, deltaX?, deltaY?}` | scrolls the page by the given offsets |
+## Acting on the Page
+
+| Action | Parameters | Notes |
+|--------|------------|-------|
+| `click` | `{tabId?, selector}` or `{tabId?, x, y}` | Performs a trusted mouse click through the Chrome DevTools Protocol |
+| `type` | `{tabId?, selector?, text}` | Focuses the selector (if provided) before inserting text |
+| `pressKey` | `{tabId?, key}` | Supports keys like `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, plus any single letter or digit |
+| `drag` | `{tabId?, x1, y1, x2, y2, steps?}` | Performs a trusted mouse drag for drawing, resizing, sliders, and canvas applications |
+| `scroll` | `{tabId?, deltaX?, deltaY?}` | Scrolls the page by the specified offsets |
+
+---
 
 ## Examples
 
-Read the active tab's interactive elements:
+### Read the active page
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
-  -H "Authorization: Bearer $TOKEN" -d '{"action":"snapshot"}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"action":"snapshot"}'
 ```
 
-Click a button found in that snapshot:
+---
+
+### Click a button
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
@@ -63,21 +90,28 @@ curl -s -X POST http://127.0.0.1:8765/cmd \
   -d '{"action":"click","params":{"selector":"#submit-btn"}}'
 ```
 
-Type into a focused field and press Enter:
+---
+
+### Type into a field and press Enter
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"action":"type","params":{"selector":"input[name=q]","text":"claude code"}}'
+  -d '{"action":"type","params":{"selector":"input[name=q]","text":"hello world"}}'
+
 curl -s -X POST http://127.0.0.1:8765/cmd \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"action":"pressKey","params":{"key":"Enter"}}'
 ```
 
-Take a screenshot for the coordinate fallback path:
+---
+
+### Take a screenshot
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
-  -H "Authorization: Bearer $TOKEN" -d '{"action":"screenshot"}'
-# data.path points to a PNG file I can read directly
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"action":"screenshot"}'
 ```
+
+The returned `data.path` points to a PNG image that your coding LLM can inspect for coordinate-based interactions when DOM selectors are unavailable.
