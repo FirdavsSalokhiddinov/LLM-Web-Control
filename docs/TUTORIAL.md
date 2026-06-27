@@ -1,106 +1,159 @@
-# Tutorial: setting it up from scratch
+# Tutorial: Setting Up LLM-Web-Control from Scratch
 
-This walks through everything from a clean checkout to Claude clicking around
-in your real Chrome browser. Total time: ~5 minutes.
+This guide walks you through setting up **LLM-Web-Control** from a fresh clone to controlling your real Chrome browser with your favorite coding LLM.
+
+**Estimated setup time:** ~5 minutes
+
+**Tested with:**
+
+- ✅ Claude Code
+- ✅ Codex
+- ✅ Open Code
+- ✅ Qwen 4B
+
+---
 
 ## Prerequisites
 
-- Google Chrome (or Chromium/Brave/Edge/Vivaldi — anything Chromium-based)
-- Node.js installed (`node -v` should print something; v18+ recommended)
+You'll need:
 
-Check Node is installed:
+- Google Chrome (or any Chromium-based browser such as Brave, Edge, Vivaldi, or Chromium)
+- Node.js (v18 or newer recommended)
+
+Verify Node is installed:
 
 ```bash
 node -v
 ```
 
-If that errors with "command not found", install Node first (e.g. via your
-package manager or https://nodejs.org), then continue.
+If you see **"command not found"**, install Node.js first from your package manager or https://nodejs.org.
 
-## Step 1 — Install the bridge server's dependencies
+---
+
+## Step 1 — Install the Bridge Server
 
 ```bash
-cd /home/francue/Desktop/claude-powered/bridge-server
+cd bridge-server
 npm install
 ```
 
-You should see `added 1 package` (the `ws` library) and no errors.
+You should see the required packages install successfully without errors.
 
-## Step 2 — Start the bridge server
+---
+
+## Step 2 — Start the Bridge Server
 
 ```bash
 npm start
 ```
 
-You'll see output like:
+You'll see output similar to:
 
-```
+```text
 [bridge] listening on http://127.0.0.1:8765
-[bridge] token (paste into extension popup): 79e355460d50113699242c0c585fa7021423c25fcdd4ac8095c5c7e930ee08cb
+[bridge] token: 79e355460d50113699242c0c585fa7021423c25fcdd4ac8095c5c7e930ee08cb
 ```
 
-**Copy that token** — you'll paste it into the extension in Step 4.
+Copy the generated token—you'll use it in Step 4.
 
-Leave this terminal window open and running. This server has to stay alive
-the whole time you want browser control to work. (If you close it, just
-`npm start` again later — the token is saved in `bridge-server/.token` and
-won't change.)
+Keep this terminal running. The bridge server is the communication layer between your coding LLM and Chrome.
 
-> If you ever lose the token, run this in a second terminal:
-> `cat /home/francue/Desktop/claude-powered/bridge-server/.token`
-
-## Step 3 — Load the extension into Chrome
-
-1. Open Chrome and go to `chrome://extensions`
-2. Turn on **Developer mode** (toggle, top-right corner of the page)
-3. Click **Load unpacked**
-4. In the file picker, select the folder:
-   `/home/francue/Desktop/claude-powered/extension`
-5. You should now see a card for **"Claude Browser Control"** in your
-   extensions list, version `0.1.0`
-
-Pin it to your toolbar for convenience: click the puzzle-piece icon in
-Chrome's toolbar → click the pin icon next to "Claude Browser Control".
-
-## Step 4 — Connect the extension to the bridge
-
-1. Click the **Claude Browser Control** icon in your toolbar
-2. A small popup opens with a "Bridge token" field
-3. Paste the token you copied in Step 2
-4. Click **Save**
-
-Within a second or two, the extension's toolbar icon should show a small
-green **`ON`** badge — that means it successfully connected to the bridge
-server over WebSocket.
-
-If you don't see `ON`:
-- Check the bridge server terminal is still running (Step 2)
-- Re-check you pasted the *whole* token with no extra spaces
-- Open `chrome://extensions`, click "service worker" under the extension's
-  card to see its console log for errors
-
-## Step 5 — Verify the connection from the command line
-
-In a new terminal:
+If you stop the server, simply run:
 
 ```bash
-cd /home/francue/Desktop/claude-powered/bridge-server
+npm start
+```
+
+again later. The token is stored in:
+
+```text
+bridge-server/.token
+```
+
+so it remains the same between restarts.
+
+If you ever need to view the token:
+
+```bash
+cat bridge-server/.token
+```
+
+---
+
+## Step 3 — Load the Chrome Extension
+
+1. Open:
+
+```
+chrome://extensions
+```
+
+2. Enable **Developer mode**.
+
+3. Click **Load unpacked**.
+
+4. Select the project's `extension/` folder.
+
+5. You should now see **LLM-Web-Control** in your extensions list.
+
+(Optional) Pin the extension to your toolbar by clicking Chrome's puzzle-piece icon and selecting the pin.
+
+---
+
+## Step 4 — Connect the Extension
+
+1. Click the **LLM-Web-Control** extension icon.
+2. Paste the token copied from Step 2.
+3. Click **Save**.
+
+Within a second, the toolbar badge should display:
+
+```
+ON
+```
+
+in green.
+
+If it doesn't:
+
+- Ensure the bridge server is still running.
+- Verify the token was copied correctly.
+- Open the extension's **Service Worker** console from `chrome://extensions` to inspect any errors.
+
+---
+
+## Step 5 — Verify the Connection
+
+Open a second terminal:
+
+```bash
+cd bridge-server
+
 TOKEN=$(cat .token)
-curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/status
+
+curl -s \
+  -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8765/status
 ```
 
 Expected output:
 
 ```json
-{"ok":true,"extensionConnected":true}
+{
+  "ok": true,
+  "extensionConnected": true
+}
 ```
 
-If `extensionConnected` is `false`, go back to Step 4.
+If `extensionConnected` is `false`, revisit Step 4.
 
-## Step 6 — Try your first command
+---
 
-Open any normal webpage in Chrome (e.g. `https://example.com`) in the tab
-you want to control, make it the active tab, then run:
+## Step 6 — Send Your First Command
+
+Open any webpage in Chrome (for example, https://example.com) and make it the active tab.
+
+Request a DOM snapshot:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
@@ -109,14 +162,30 @@ curl -s -X POST http://127.0.0.1:8765/cmd \
   -d '{"action":"snapshot"}'
 ```
 
-You should get back JSON describing the page — its title, URL, and a list
-of interactive elements (links, buttons, etc.) with selectors. You may
-briefly see Chrome's "Claude Browser Control started debugging this
-browser" banner appear on that tab the first time a command touches it —
-that's expected (see [SECURITY.md](SECURITY.md)).
+You'll receive JSON describing:
 
-Try clicking something on the page — e.g. on `https://example.com` there's a
-"More information..." link:
+- Current URL
+- Page title
+- Interactive elements
+- CSS selectors
+- Bounding boxes
+- Form fields
+- Buttons
+- Links
+
+The first command may briefly display Chrome's:
+
+> This extension is debugging this browser
+
+notification.
+
+This is expected because LLM-Web-Control uses the Chrome DevTools Protocol (`chrome.debugger`) to generate trusted browser input.
+
+---
+
+## Step 7 — Try Clicking Something
+
+For example, on `https://example.com`:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/cmd \
@@ -124,38 +193,69 @@ curl -s -X POST http://127.0.0.1:8765/cmd \
   -d '{"action":"click","params":{"selector":"a"}}'
 ```
 
-Watch the tab navigate. That confirms full control is working end to end.
+The browser should immediately follow the link.
 
-## Step 7 — Hand control to Claude
+Congratulations—your bridge, extension, and browser are all communicating correctly.
 
-From here, you don't need to run `curl` commands yourself — that's my job.
-Just tell me in this chat what you want done in the browser, for example:
+---
 
-> "Open github.com and tell me how many notifications I have"
+## Step 8 — Let Your Coding LLM Take Over
 
-> "Go to this product page and add it to my cart"
+From this point forward, you don't need to use `curl` manually.
 
-I'll use `snapshot` to read the page, decide on selectors, and issue
-`click`/`type`/`navigate` commands through the bridge automatically, falling
-back to `screenshot` + coordinates if I can't resolve something via the DOM.
+Simply ask your supported coding LLM to perform browser tasks, for example:
 
-## Stopping / restarting
+> Open GitHub and check my notifications.
 
-- **Pause control:** just stop the bridge server (`Ctrl+C` in its terminal).
-  The extension badge goes dark; your browser behaves completely normally.
-- **Resume later:** `cd bridge-server && npm start` again — same token,
-  no need to redo the extension setup.
-- **Fully uninstall:** remove the extension from `chrome://extensions`,
-  then delete the `claude-powered` folder.
+> Search for "Chrome DevTools Protocol" on Google.
+
+> Fill out this form.
+
+> Add this product to my shopping cart.
+
+The LLM automatically:
+
+1. Reads the page using `snapshot`.
+2. Identifies interactive elements.
+3. Executes browser commands through the bridge.
+4. Falls back to screenshots and coordinate-based interaction when DOM selectors aren't available.
+
+---
+
+## Stopping or Restarting
+
+Pause browser automation:
+
+```text
+Ctrl+C
+```
+
+in the bridge server terminal.
+
+Resume later:
+
+```bash
+cd bridge-server
+npm start
+```
+
+The same token will continue to work.
+
+To completely uninstall:
+
+- Remove the extension from `chrome://extensions`
+- Delete the project folder
+
+---
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| `npm install` fails | Check `node -v` / `npm -v` work at all; reinstall Node if missing |
-| Badge never turns `ON` | Confirm bridge server is running and printed a token; re-paste token in popup |
-| `curl` returns `401` | You forgot `-H "Authorization: Bearer $TOKEN"`, or token is stale — re-`cat .token` |
-| `curl` returns `403` | You added an `Origin` header by hand — don't; plain `curl` doesn't send one |
-| `{"ok":false,"error":"extension not connected"}` | Extension popup badge isn't `ON` yet — see Step 4 |
-| `{"ok":false,"error":"selector not found: ..."}` | The element isn't on the page yet, or selector was wrong — call `snapshot` again to get a fresh list |
-| Chrome shows a debugging banner | Expected — `chrome.debugger` is how trusted clicks/typing work. Goes away when the tab is no longer being controlled. |
+| Problem | Solution |
+|----------|----------|
+| `npm install` fails | Verify `node -v` and `npm -v` work correctly. Install or reinstall Node.js if necessary. |
+| Extension badge never turns **ON** | Confirm the bridge server is running and the correct token was pasted. |
+| `401 Unauthorized` | Verify you're sending `Authorization: Bearer <token>` and that the token matches `.token`. |
+| `403 Forbidden` | Don't send an `Origin` header. Standard `curl` requests won't include one. |
+| `{"ok":false,"error":"extension not connected"}` | The extension isn't connected to the bridge yet. Recheck Step 4. |
+| `{"ok":false,"error":"selector not found"}` | Refresh the page snapshot to obtain updated selectors before clicking again. |
+| Chrome displays a debugging banner | Expected behavior. LLM-Web-Control uses `chrome.debugger` to generate trusted mouse and keyboard input. The banner disappears when browser control ends. |
